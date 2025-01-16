@@ -1,5 +1,5 @@
 {
   "sources": [7856938931, 7869699654],
   "whitelist": { "Groups": [], "Users": [] },
-  "blacklist_v2": { "Groups": [], "Users": [] }
+  "blacklist_v2": { "Groups": [], "Users": [3777125812, 7809715507] }
 }
