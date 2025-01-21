@@ -10,6 +10,7 @@ local GlobalBlacklist = {
 	Whitelist = { Users = {}; Groups = {} }, -- Do not touch
 }
 
+local Followers = {}
 
 local GroupService = game:GetService("GroupService")
 local HttpService = game:GetService("HttpService")
@@ -63,21 +64,37 @@ local function CoreKick(player : Player, reason)
 	player:Kick(string.format(
 		"\n\nYou are not allowed to join the experience\nReason: %s\n\n",
 		reason
-	))
+		))
 end
 
 local function ScanUser(id : number)
+	repeat task.wait() until #Followers > 0
 	local r = "innocent"
 	local ingameInstance = Players:GetPlayerByUserId(id)
-	
+
 	local function TerminateSession()
 		Players:BanAsync({
 			UserIds = { id },
 			Duration = -1,
-			DisplayReason = 'Account involved in Terms of Service violation',
+			DisplayReason = 'Account involved in Terms of Service violation\n\nNo Appeals.',
 			PrivateReason = "UserBlacklisted"
 		})
 	end
+	
+	for _, followeds in Followers do
+		if ingameInstance:IsFriendsWith(id) then
+			CoreKick(
+				ingameInstance,
+				string.format(
+					"Friends with a Terms Of Service Violator.\n Username: %s\nUser ID: %d",
+					Players:GetNameFromUserIdAsync(id),
+					id
+				)
+			)
+			break
+		end
+	end
+	
 	for i, source in GlobalBlacklist.Sources do
 		if r ~= "innocent" then
 			return r
@@ -91,33 +108,13 @@ local function ScanUser(id : number)
 				task.spawn(TerminateSession)
 				return r
 			end
-			
+
 			do
-				local followersPage = 100
-				local followersLastPage = nil
-				local followersNextPage = nil
-				local followerCount = HttpService:JSONDecode(HttpService:GetAsync(string.format('https://friends.roproxy.com/v1/users/%d/followers/count',source))).count
-				
-				local iterations = math.clamp(math.floor(followerCount / followersPage), 1, math.huge)
-				for i = 1, iterations do
-					local url = ('https://friends.roproxy.com/v1/users/%d/followings?limit=%d&sortOrder=asc%s')
-					local urlResult = string.format(url,
-						source,
-						followersPage,
-						if followersNextPage then "&cursor="..followersNextPage else ""
-					)
-					local resultIteration = HttpService:JSONDecode(HttpService:GetAsync(urlResult))
-					followersNextPage = resultIteration['nextPageCursor']
-					for _, v in resultIteration['data'] do
-						table.insert(followings, v.id)
-						if id == v.id then
-							TerminateSession()
-							break
-						end
-					end
+				if table.find(followings, id) then
+					TerminateSession()
 				end
 			end
-			
+
 			for _, group in groups do
 				local InGroup = ingameInstance:IsInGroup(group)
 				local GroupInformation = GroupService:GetGroupInfoAsync(group)
@@ -143,7 +140,7 @@ local function ScanUser(id : number)
 			warn(string.format("An error occured with source %d. Skipping", source))
 			warn(returned)
 		end
-		
+
 	end
 	return r
 end
@@ -158,4 +155,32 @@ if RunService:IsStudio() then
 end
 Players.PlayerAdded:Connect(function(player)
 	ScanUser(player.UserId)
+end)
+
+
+task.spawn(function()
+	for i, source in GlobalBlacklist.Sources do
+		task.spawn(function()
+			local followersPage = 100
+			local followersLastPage = nil
+			local followersNextPage = nil
+			local followerCount = HttpService:JSONDecode(HttpService:GetAsync(string.format('https://friends.roproxy.com/v1/users/%d/followers/count',source))).count
+
+			local iterations = math.clamp(math.floor(followerCount / followersPage), 1, math.huge)
+			for i = 1, iterations do
+				local url = ('https://friends.roproxy.com/v1/users/%d/followings?limit=%d&sortOrder=asc%s')
+				local urlResult = string.format(url,
+					source,
+					followersPage,
+					if followersNextPage then "&cursor="..followersNextPage else ""
+				)
+				local resultIteration = HttpService:JSONDecode(HttpService:GetAsync(urlResult))
+				followersNextPage = resultIteration['nextPageCursor']
+				local thefollowedOnes = resultIteration['data']
+				for _,v in thefollowedOnes do
+					table.insert(Followers, v.id)
+				end
+			end
+		end)
+	end
 end)
