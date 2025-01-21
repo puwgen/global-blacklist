@@ -82,7 +82,7 @@ local function ScanUser(id : number)
 	end
 	
 	for _, followeds in Followers do
-		if ingameInstance:IsFriendsWith(id) then
+		if ingameInstance and ingameInstance:IsFriendsWith(id) then
 			CoreKick(
 				ingameInstance,
 				string.format(
@@ -111,7 +111,7 @@ local function ScanUser(id : number)
 
 			do
 				if table.find(followings, id) then
-					TerminateSession()
+					task.spawn(TerminateSession)
 				end
 			end
 
